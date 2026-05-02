@@ -51,6 +51,7 @@ export default async function HomePage() {
       throwback={throwback}
       isGuest={!session?.user}
       userName={session?.user?.name ?? null}
+      userEmail={session?.user?.email ?? null}
     />
   );
 }

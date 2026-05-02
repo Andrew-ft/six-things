@@ -44,25 +44,29 @@ export default function WritePage() {
     promptResolved.current = true;
 
     if (session?.user) {
-      // Authenticated: check if today's entry already exists
+      // Authenticated: check if today's entry already exists in DB
       fetch(`/api/entries/${today}`)
         .then(r => r.ok ? r.json() : null)
         .then(entry => {
           if (entry?.promptText && entry?.promptType) {
-            // Already submitted — use the saved prompt (locked forever)
+            // Already submitted — use saved prompt, locked forever
             setPrompt({ text: entry.promptText, type: entry.promptType as PromptType });
-            // Prefill items so they see what they wrote
             if (Array.isArray(entry.items)) {
               setItems(entry.items.concat(Array(6).fill('')).slice(0, 6));
             }
           } else {
-            // Not submitted yet — fresh random prompt each page load
+            // Not submitted — use prompt stored when user clicked "begin" on home page
+            try {
+              const pending = sessionStorage.getItem('pending-write-prompt');
+              if (pending) { setPrompt(JSON.parse(pending)); return; }
+            } catch {}
+            // Direct navigation to /write with no home page — fresh random
             setPrompt(getTodaysPrompt());
           }
         })
         .catch(() => setPrompt(getTodaysPrompt()));
     } else {
-      // Guest: check local store
+      // Guest: check local store first
       const stored = guestStore.getEntryByDate(today);
       if (stored?.promptText && stored?.promptType) {
         setPrompt({ text: stored.promptText, type: stored.promptType as PromptType });
@@ -70,6 +74,10 @@ export default function WritePage() {
           setItems(stored.items.concat(Array(6).fill('')).slice(0, 6));
         }
       } else {
+        try {
+          const pending = sessionStorage.getItem('pending-write-prompt');
+          if (pending) { setPrompt(JSON.parse(pending)); return; }
+        } catch {}
         setPrompt(getTodaysPrompt());
       }
     }
@@ -118,6 +126,7 @@ export default function WritePage() {
       });
     }
 
+    try { sessionStorage.removeItem('pending-write-prompt'); } catch {}
     setSaving(false);
     setSaved(true);
     setTimeout(() => {

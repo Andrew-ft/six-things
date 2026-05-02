@@ -43,7 +43,13 @@ export default function PromptCard({ prompt, hasTodayEntry }: Props) {
           <span>today is saved. see you tomorrow.</span>
         </div>
       ) : (
-        <Link href="/write" style={{ textDecoration: 'none' }}>
+        <Link
+          href="/write"
+          style={{ textDecoration: 'none' }}
+          onClick={() => {
+            try { sessionStorage.setItem('pending-write-prompt', JSON.stringify(prompt)); } catch {}
+          }}
+        >
           <button className="btn-primary" style={{ padding: '0.6rem 1.5rem', fontSize: '0.9rem' }}>
             begin →
           </button>
