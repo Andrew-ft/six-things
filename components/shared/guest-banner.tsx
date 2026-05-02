@@ -1,6 +1,6 @@
 'use client';
 
-import { signIn } from 'next-auth/react';
+import Link from 'next/link';
 import { useGuestStore } from '@/lib/guest-store';
 
 export default function GuestBanner() {
@@ -25,21 +25,14 @@ export default function GuestBanner() {
         letterSpacing: '0.02em',
       }}>
         You're using Six Things as a guest.{' '}
-        <button
-          onClick={() => signIn('google', { callbackUrl: '/' })}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--accent)',
-            cursor: 'pointer',
-            fontFamily: 'Georgia, serif',
-            fontSize: '0.8rem',
-            textDecoration: 'underline',
-            padding: 0,
-          }}
-        >
+        <Link href="/auth/sign-in" style={{
+          color: 'var(--accent)',
+          fontFamily: 'Georgia, serif',
+          fontSize: '0.8rem',
+          textDecoration: 'underline',
+        }}>
           Sign in to save your noticings.
-        </button>
+        </Link>
       </p>
     </div>
   );

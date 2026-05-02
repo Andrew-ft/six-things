@@ -7,9 +7,6 @@ export async function getUserByEmail(email: string) {
   return db.query.users.findFirst({ where: eq(users.email, email) });
 }
 
-export async function getUserByGoogleId(googleId: string) {
-  return db.query.users.findFirst({ where: eq(users.googleId, googleId) });
-}
 
 export async function createUser(data: NewUser) {
   const [user] = await db.insert(users).values(data).returning();

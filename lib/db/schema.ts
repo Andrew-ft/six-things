@@ -1,12 +1,12 @@
 import { pgTable, uuid, text, timestamp, date, boolean, unique } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
-  id:         uuid('id').primaryKey().defaultRandom(),
-  email:      text('email').notNull().unique(),
-  name:       text('name').notNull(),
-  googleId:   text('google_id').unique(),
-  avatarUrl:  text('avatar_url'),
-  createdAt:  timestamp('created_at').defaultNow().notNull(),
+  id:           uuid('id').primaryKey().defaultRandom(),
+  email:        text('email').notNull().unique(),
+  name:         text('name').notNull(),
+  passwordHash: text('password_hash'),
+  avatarUrl:    text('avatar_url'),
+  createdAt:    timestamp('created_at').defaultNow().notNull(),
 });
 
 export const entries = pgTable('entries', {

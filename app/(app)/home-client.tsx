@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { signOut, signIn } from 'next-auth/react';
+import { signOut } from 'next-auth/react';
 import { useGuestStore } from '@/lib/guest-store';
 import PromptCard from '@/components/home/prompt-card';
 import StreakCard from '@/components/home/streak-card';
@@ -64,13 +64,11 @@ export default function HomeClient({
 
           <div style={{ textAlign: 'right', paddingTop: '0.25rem' }}>
             {showGuest ? (
-              <button
-                onClick={() => signIn('google', { callbackUrl: '/' })}
-                className="btn-ghost"
-                style={{ fontSize: '0.78rem' }}
-              >
-                sign in
-              </button>
+              <Link href="/auth/sign-in" style={{ textDecoration: 'none' }}>
+                <button className="btn-ghost" style={{ fontSize: '0.78rem' }}>
+                  sign in
+                </button>
+              </Link>
             ) : (
               <button
                 onClick={() => signOut({ callbackUrl: '/auth/sign-in' })}
