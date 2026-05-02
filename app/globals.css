@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+:root {
+  --paper:       #f4ecdb;
+  --paper-dark:  #ede2c5;
+  --ink:         #3a2e22;
+  --soft-ink:    #6a5a4a;
+  --accent:      #c9925c;
+  --accent-soft: #d4a574;
+  --line:        #c9b78f;
+  --shadow:      rgba(58, 46, 34, 0.08);
+  --shadow-md:   rgba(58, 46, 34, 0.14);
+  --sage:        #8a9e7a;
+  --sage-deep:   #6b8159;
+  --clay:        #b48c78;
+  --clay-deep:   #9d6f56;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; min-height: 100vh; }
+
+body {
+  background: radial-gradient(ellipse at top, #f8f1e0 0%, #ede2c5 50%, #d8c79f 100%);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: Georgia, 'Times New Roman', serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+  opacity: 0.06;
+  z-index: 0;
+}
+
+.container { max-width: 640px; margin: 0 auto; padding: 0 1rem; }
+@media (min-width: 640px) { .container { padding: 0 2rem; } }
+
+.font-display { font-family: 'Cormorant Garamond', Georgia, serif; }
+.font-hand    { font-family: 'Caveat', cursive; }
+
+.card {
+  background: var(--paper);
+  border-left: 4px solid var(--accent);
+  border-radius: 2px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 2px 12px var(--shadow), 0 1px 3px var(--shadow-md);
+  position: relative;
+}
+.card-plain {
+  background: var(--paper);
+  border-radius: 2px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 2px 12px var(--shadow);
+}
+
+.btn-primary {
+  background: var(--ink); color: var(--paper);
+  border: none; border-radius: 3px;
+  padding: 0.75rem 1.5rem;
+  font-family: Georgia, serif; font-size: 0.9rem; letter-spacing: 0.04em;
+  cursor: pointer; transition: background 0.15s, transform 0.1s; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.btn-primary:hover { background: #2a2018; }
+.btn-primary:active { transform: scale(0.98); }
+
+.btn-secondary {
+  background: transparent; color: var(--soft-ink);
+  border: 1px solid var(--line); border-radius: 3px;
+  padding: 0.6rem 1.25rem;
+  font-family: Georgia, serif; font-size: 0.85rem; letter-spacing: 0.04em;
+  cursor: pointer; transition: border-color 0.15s, color 0.15s; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.btn-secondary:hover { border-color: var(--soft-ink); color: var(--ink); }
+
+.btn-ghost {
+  background: transparent; border: none; color: var(--soft-ink);
+  font-family: Georgia, serif; font-size: 0.85rem;
+  cursor: pointer; padding: 0.5rem; min-height: 44px;
+}
+.btn-ghost:hover { color: var(--ink); }
+
+.cat-label {
+  font-family: Georgia, serif; font-size: 0.68rem;
+  letter-spacing: 0.28em; text-transform: uppercase; color: var(--soft-ink);
+}
+
+@keyframes inkReveal {
+  from { opacity: 0; transform: scale(0.92); filter: blur(2px); }
+  to   { opacity: 1; transform: scale(1);    filter: blur(0);   }
+}
+.ink-reveal { animation: inkReveal 0.4s ease-out forwards; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 0.35s ease-out forwards; }
+
+.stagger > * { opacity: 0; }
+.stagger > *:nth-child(1) { animation: fadeUp 0.3s 0.05s ease-out forwards; }
+.stagger > *:nth-child(2) { animation: fadeUp 0.3s 0.1s  ease-out forwards; }
+.stagger > *:nth-child(3) { animation: fadeUp 0.3s 0.15s ease-out forwards; }
+.stagger > *:nth-child(4) { animation: fadeUp 0.3s 0.2s  ease-out forwards; }
+.stagger > *:nth-child(5) { animation: fadeUp 0.3s 0.25s ease-out forwards; }
+.stagger > *:nth-child(6) { animation: fadeUp 0.3s 0.3s  ease-out forwards; }
+
+.ink-input {
+  background: transparent; border: none;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink); font-family: Georgia, serif; font-size: 1rem;
+  padding: 0.5rem 0; width: 100%; outline: none; transition: border-color 0.2s;
+}
+.ink-input:focus { border-bottom-color: var(--accent); }
+.ink-input::placeholder { color: var(--line); font-style: italic; }
+
+.page-footer {
+  font-family: Georgia, serif; font-size: 0.72rem;
+  letter-spacing: 0.18em; color: var(--soft-ink); opacity: 0.6;
+  text-align: center; padding: 2rem 0 1rem;
+}
+
+.cal-day {
+  aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+  font-family: Georgia, serif; font-size: 0.85rem;
+  border-radius: 2px; cursor: pointer; transition: background 0.15s; min-height: 36px;
+}
+.cal-day-entry  { background: rgba(201, 146, 92, 0.18); color: var(--ink); }
+.cal-day-selected { background: var(--accent) !important; color: var(--paper) !important; }
+.cal-day:hover:not(.cal-day-selected) { background: var(--shadow); }
+
+.streak-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.streak-bar-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.6s ease-out; }
+
+.word-cloud { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+
+.day-strip { display: flex; gap: 3px; }
+.day-strip-cell {
+  flex: 1; height: 28px; border-radius: 2px; background: var(--line);
+  display: flex; align-items: center; justify-content: center;
+  font-family: Georgia, serif; font-size: 0.6rem; letter-spacing: 0.05em;
+  color: var(--soft-ink); transition: background 0.2s;
+}
+.day-strip-cell.done { background: var(--sage); color: white; }
+
+.spectrum-bar {
+  height: 8px; border-radius: 4px;
+  background: linear-gradient(to right, var(--accent), var(--sage)); position: relative;
+}
+.spectrum-marker {
+  width: 14px; height: 14px; border-radius: 50%; background: var(--ink);
+  position: absolute; top: -3px; transform: translateX(-50%); transition: left 0.5s ease-out;
+}
