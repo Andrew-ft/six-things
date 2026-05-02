@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useGuestStore } from '@/lib/guest-store';
@@ -40,7 +40,9 @@ export default function WeekPage() {
   const { data: session } = useSession();
   const guestStore = useGuestStore();
   const [data, setData] = useState<WeekData | null>(null);
+  const [weeklySummary, setWeeklySummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const summaryFetched = useRef(false);
 
   useEffect(() => {
     if (session?.user) {
@@ -72,6 +74,21 @@ export default function WeekPage() {
       setLoading(false);
     }
   }, [session, guestStore.isGuest]);
+
+  // Fetch Claude-generated summary once when data loads
+  useEffect(() => {
+    if (!data || summaryFetched.current || data.allItems.length === 0) return;
+    summaryFetched.current = true;
+
+    fetch('/api/insights/week/summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+      .then(r => r.json())
+      .then(d => { if (d.summary) setWeeklySummary(d.summary); })
+      .catch(() => {});
+  }, [data]);
 
   if (loading) {
     return (
@@ -111,7 +128,7 @@ export default function WeekPage() {
           <div className="card-plain" style={{ marginBottom: '1.25rem', borderLeft: '3px solid var(--accent-soft)', paddingLeft: '1rem' }}>
             <div className="cat-label" style={{ marginBottom: '0.5rem' }}>weekly portrait</div>
             <p style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem', color: 'var(--soft-ink)', margin: 0, lineHeight: 1.7 }}>
-              {generateWeeklySummary(data)}
+              {weeklySummary || generateWeeklySummary(data)}
             </p>
           </div>
 

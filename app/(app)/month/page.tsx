@@ -138,6 +138,7 @@ export default function MonthPage() {
 
   const [data, setData] = useState<MonthData | null>(null);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [portrait, setPortrait] = useState<string | null>(null);
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const questionsFetched = useRef(false);
@@ -182,30 +183,28 @@ export default function MonthPage() {
     }
   }, [session?.user?.id, guestStore.isGuest]);
 
-  // Generate quiz questions exactly once when data first loads
+  // Generate quiz questions and portrait exactly once when data first loads
   useEffect(() => {
     if (!data || questionsFetched.current) return;
     questionsFetched.current = true;
     setQuestionsLoading(true);
 
-    if (session?.user) {
-      fetch('/api/insights/month/questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+    fetch('/api/insights/month/questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.questions) setQuizQuestions(d.questions);
+        if (d.portrait) setPortrait(d.portrait);
       })
-        .then(r => r.json())
-        .then(d => { if (d.questions) setQuizQuestions(d.questions); })
-        .catch(() => setQuizQuestions(generateQuizQuestions(data)))
-        .finally(() => setQuestionsLoading(false));
-    } else {
-      setQuizQuestions(generateQuizQuestions(data));
-      setQuestionsLoading(false);
-    }
+      .catch(() => setQuizQuestions(generateQuizQuestions(data)))
+      .finally(() => setQuestionsLoading(false));
   }, [data]);
 
   async function fetchLetter() {
-    if (!data || !session?.user) return;
+    if (!data) return;
     try {
       const res = await fetch('/api/insights/month/letter', {
         method: 'POST',
@@ -371,7 +370,7 @@ export default function MonthPage() {
           <div className="card" style={{ marginBottom: '1.25rem' }}>
             <div className="cat-label" style={{ marginBottom: '0.75rem' }}>🪞 self portrait</div>
             <p style={{ fontFamily: 'Georgia, serif', lineHeight: 1.7, margin: 0, fontSize: '0.9rem', color: 'var(--soft-ink)' }}>
-              {generateSelfPortrait(data)}
+              {portrait || generateSelfPortrait(data)}
             </p>
           </div>
 
@@ -444,7 +443,7 @@ export default function MonthPage() {
               </p>
             ) : (
               <p className="font-display" style={{ fontStyle: 'italic', color: 'var(--soft-ink)', fontSize: '0.9rem' }}>
-                {session?.user ? 'generating your letter…' : 'sign in to receive your letter.'}
+                generating your letter…
               </p>
             )}
           </div>

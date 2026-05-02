@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 
 interface MonthAnalysis {
   topWords: Array<{ word: string; count: number }>;
@@ -10,6 +9,7 @@ interface MonthAnalysis {
   daysWritten: number;
   totalNoticings: number;
   allItems: string[];
+  innerVoice?: Array<{ phrase: string; count: number }>;
 }
 
 interface QuizQuestion {
@@ -35,7 +35,6 @@ function shuffled<T>(arr: T[]): T[] {
 
 function fallbackQuestions(data: MonthAnalysis): QuizQuestion[] {
   const qs: QuizQuestion[] = [];
-
   if (data.topWords.length >= 3) {
     const correct = data.topWords[0].word;
     const opts = shuffled([data.topWords[0].word, data.topWords[1].word, data.topWords[2].word]);
@@ -52,23 +51,17 @@ function fallbackQuestions(data: MonthAnalysis): QuizQuestion[] {
       question: 'How would you describe the mood of what you wrote this month?',
       options: ['mostly light', 'mostly heavy', 'a mix of both'],
       correctIdx,
-      explanation: correctIdx === 0 ? `Your words leaned lighter — ${light} vs ${heavy}.`
-        : correctIdx === 1 ? `Your words leaned heavier — ${heavy} vs ${light}.`
-        : `Light and heavy in balance — ${light} lighter, ${heavy} heavier.`,
+      explanation: correctIdx === 0 ? `Lighter — ${light} vs ${heavy}.` : correctIdx === 1 ? `Heavier — ${heavy} vs ${light}.` : `Mixed — ${light} lighter, ${heavy} heavier.`,
     });
   }
-
   const { inward, outward } = data.shape;
   const q2correct = inward > 60 ? 0 : outward > 60 ? 1 : 2;
   qs.push({
     question: 'When you notice things, you tend to look:',
     options: ['inward — feelings, thoughts', 'outward — people, the world', 'about the same'],
     correctIdx: q2correct,
-    explanation: q2correct === 0 ? `${inward}% of your language pointed inward this month.`
-      : q2correct === 1 ? `${outward}% of your language pointed outward this month.`
-      : `Balanced — ${inward}% inward, ${outward}% outward.`,
+    explanation: q2correct === 0 ? `${inward}% inward.` : q2correct === 1 ? `${outward}% outward.` : `Balanced — ${inward}% inward, ${outward}% outward.`,
   });
-
   const lateDiff = data.lateWeather.light - data.lateWeather.heavy;
   const earlyDiff = data.earlyWeather.light - data.earlyWeather.heavy;
   const q3correct = lateDiff > earlyDiff + 1 ? 0 : earlyDiff > lateDiff + 1 ? 1 : 2;
@@ -76,22 +69,25 @@ function fallbackQuestions(data: MonthAnalysis): QuizQuestion[] {
     question: 'As the month went on, things felt:',
     options: ['lighter as it progressed', 'heavier as it progressed', 'roughly the same throughout'],
     correctIdx: q3correct,
-    explanation: q3correct === 0 ? 'Your later noticings had a lighter quality than your earlier ones.'
-      : q3correct === 1 ? 'Your earlier noticings were lighter; later ones carried more weight.'
-      : 'The emotional tone stayed fairly consistent through the month.',
+    explanation: q3correct === 0 ? 'Later noticings were lighter.' : q3correct === 1 ? 'Later noticings were heavier.' : 'Tone stayed consistent.',
   });
-
   return qs;
 }
 
-export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+function fallbackPortrait(data: MonthAnalysis): string {
+  const parts: string[] = [];
+  parts.push(`This month you wrote ${data.daysWritten} ${data.daysWritten === 1 ? 'time' : 'times'}, noticing ${data.totalNoticings} small things.`);
+  if (data.topWords[0]) parts.push(`The word "${data.topWords[0].word}" came up most — ${data.topWords[0].count} times.`);
+  if (data.topWords[1] && data.topWords[2]) parts.push(`You also kept returning to "${data.topWords[1].word}" and "${data.topWords[2].word}".`);
+  parts.push(data.weather.light > data.weather.heavy * 1.5 ? 'Your noticings leaned toward the lighter.' : data.weather.heavy > data.weather.light * 1.5 ? 'Your noticings carried some weight.' : 'You held both light and heavy things.');
+  return parts.join(' ');
+}
 
+export async function POST(req: NextRequest) {
   const data: MonthAnalysis = await req.json();
 
   if (!hasValidApiKey()) {
-    return NextResponse.json({ questions: fallbackQuestions(data) });
+    return NextResponse.json({ questions: fallbackQuestions(data), portrait: fallbackPortrait(data) });
   }
 
   try {
@@ -99,55 +95,57 @@ export async function POST(req: NextRequest) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const topWordsStr = data.topWords.slice(0, 5).map(w => `"${w.word}" (${w.count}x)`).join(', ');
-    const sampleItems = data.allItems.slice(0, 10).map(i => `- ${i}`).join('\n');
+    const allItemsList = data.allItems.slice(0, 20).map(i => `- ${i}`).join('\n');
 
-    const prompt = `You are creating a gentle self-reflection quiz for someone who journals daily. Based on their actual writing patterns this month, create exactly 3 multiple-choice questions.
+    const prompt = `You are helping someone reflect on their journaling this month in an app called "Six Things". Based on their actual entries, create a self-reflection quiz AND a personal portrait.
 
-Their writing data this month:
-- Days written: ${data.daysWritten}, total things noticed: ${data.totalNoticings}
-- Most frequent words: ${topWordsStr || 'none yet'}
-- Emotional tone: ${data.weather.light} lighter noticings, ${data.weather.heavy} heavier, ${data.weather.neutral} neutral
-- Noticing direction: ${data.shape.inward}% inward (feelings/thoughts), ${data.shape.outward}% outward (world/people)
-- Early month tone: ${data.earlyWeather.light} light / ${data.earlyWeather.heavy} heavy
-- Late month tone: ${data.lateWeather.light} light / ${data.lateWeather.heavy} heavy
-- Sample entries:
-${sampleItems}
+Their actual journal entries this month:
+${allItemsList}
 
-Create 3 varied questions that ask the person to guess something true about their own writing patterns. Make each question feel personal and specific to their actual entries. Keep the tone gentle and curious.
+Additional stats:
+- Days written: ${data.daysWritten}, total noticings: ${data.totalNoticings}
+- Top words: ${topWordsStr || 'none yet'}
+- Emotional tone: ${data.weather.light} lighter, ${data.weather.heavy} heavier, ${data.weather.neutral} neutral
+- Noticing direction: ${data.shape.inward}% inward, ${data.shape.outward}% outward
+- Early month: ${data.earlyWeather.light} light / ${data.earlyWeather.heavy} heavy; Late month: ${data.lateWeather.light} light / ${data.lateWeather.heavy} heavy
 
-Return ONLY valid JSON — no other text before or after:
+Return ONLY this JSON (no other text):
 {
+  "portrait": "3-4 sentences describing what this person noticed this month, using their actual words and phrases. Gentle, personal, second-person. No advice or interpretation.",
   "questions": [
     {
-      "question": "...",
+      "question": "A specific question about their actual entries — ask them to guess something true about what they wrote",
       "options": ["...", "...", "..."],
       "correctIdx": 0,
-      "explanation": "..."
+      "explanation": "Brief explanation citing evidence from their actual entries"
     }
   ]
 }
 
-Rules:
-- correctIdx is 0, 1, or 2 (the index of the correct option in the options array)
-- Each explanation cites specific evidence from their data
-- Options must be meaningfully different from each other
-- Exactly 3 questions, each with exactly 3 options`;
+Rules for questions:
+- All 3 questions must be directly based on the actual entries listed above
+- Reference specific things they actually wrote (words, themes, patterns)
+- correctIdx is 0, 1, or 2
+- Exactly 3 questions, each with exactly 3 options
+- Keep tone gentle and curious, never clinical`;
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
+      max_tokens: 1200,
       messages: [{ role: 'user', content: prompt }],
     });
 
     const text = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
     const parsed = JSON.parse(text);
 
-    if (Array.isArray(parsed.questions) && parsed.questions.length === 3) {
-      return NextResponse.json({ questions: parsed.questions });
-    }
-    return NextResponse.json({ questions: fallbackQuestions(data) });
+    return NextResponse.json({
+      questions: Array.isArray(parsed.questions) && parsed.questions.length === 3
+        ? parsed.questions
+        : fallbackQuestions(data),
+      portrait: parsed.portrait || fallbackPortrait(data),
+    });
   } catch (err) {
-    console.error('Question generation failed:', err);
-    return NextResponse.json({ questions: fallbackQuestions(data) });
+    console.error('Questions/portrait generation failed:', err);
+    return NextResponse.json({ questions: fallbackQuestions(data), portrait: fallbackPortrait(data) });
   }
 }
