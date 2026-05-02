@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { getTodaysPrompt, PROMPT_ICONS, PROMPT_LABELS } from '@/lib/prompts';
+import type { Prompt, PromptType } from '@/lib/prompts';
 import { useGuestStore } from '@/lib/guest-store';
 import PageFooter from '@/components/shared/page-footer';
 
@@ -18,30 +19,61 @@ const PLACEHOLDERS = [
 
 export default function WritePage() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const guestStore = useGuestStore();
 
-  const [prompt] = useState(() => {
-    const key = 'write-prompt-session';
-    try {
-      const stored = sessionStorage.getItem(key);
-      if (stored) return JSON.parse(stored);
-    } catch {}
-    const p = getTodaysPrompt();
-    try { sessionStorage.setItem(key, JSON.stringify(p)); } catch {}
-    return p;
-  });
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [items, setItems] = useState(['', '', '', '', '', '']);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [followUp, setFollowUp] = useState<string | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const promptResolved = useRef(false);
 
   useEffect(() => {
     inputRefs.current[0]?.focus();
-  }, []);
+  }, [prompt]); // focus once prompt is ready
 
-  const today = new Date().toISOString().slice(0, 10);
+  // Resolve the prompt exactly once
+  useEffect(() => {
+    if (promptResolved.current) return;
+    if (status === 'loading') return; // wait for session
+
+    promptResolved.current = true;
+
+    if (session?.user) {
+      // Authenticated: check if today's entry already exists
+      fetch(`/api/entries/${today}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(entry => {
+          if (entry?.promptText && entry?.promptType) {
+            // Already submitted — use the saved prompt (locked forever)
+            setPrompt({ text: entry.promptText, type: entry.promptType as PromptType });
+            // Prefill items so they see what they wrote
+            if (Array.isArray(entry.items)) {
+              setItems(entry.items.concat(Array(6).fill('')).slice(0, 6));
+            }
+          } else {
+            // Not submitted yet — fresh random prompt each page load
+            setPrompt(getTodaysPrompt());
+          }
+        })
+        .catch(() => setPrompt(getTodaysPrompt()));
+    } else {
+      // Guest: check local store
+      const stored = guestStore.getEntryByDate(today);
+      if (stored?.promptText && stored?.promptType) {
+        setPrompt({ text: stored.promptText, type: stored.promptType as PromptType });
+        if (Array.isArray(stored.items)) {
+          setItems(stored.items.concat(Array(6).fill('')).slice(0, 6));
+        }
+      } else {
+        setPrompt(getTodaysPrompt());
+      }
+    }
+  }, [status, session?.user]);
 
   function handleChange(i: number, val: string) {
     const next = [...items];
@@ -57,6 +89,7 @@ export default function WritePage() {
   }
 
   async function handleSave() {
+    if (!prompt) return;
     const filled = items.filter(s => s.trim());
     if (!filled.length) return;
 
@@ -74,7 +107,6 @@ export default function WritePage() {
         }),
       });
     } else {
-      // Guest or anonymous — save in-memory and mark as guest
       guestStore.setGuest(true);
       guestStore.saveEntry({
         date:       today,
@@ -86,7 +118,6 @@ export default function WritePage() {
       });
     }
 
-    try { sessionStorage.removeItem('write-prompt-session'); } catch {}
     setSaving(false);
     setSaved(true);
     setTimeout(() => {
@@ -118,22 +149,27 @@ export default function WritePage() {
       }}>
         <div className="ink-reveal" style={{ textAlign: 'center' }}>
           <p className="font-display" style={{
-            fontSize: '2rem',
-            fontStyle: 'italic',
-            color: 'var(--ink)',
-            marginBottom: '0.5rem',
+            fontSize: '2rem', fontStyle: 'italic',
+            color: 'var(--ink)', marginBottom: '0.5rem',
           }}>
             today is saved.
           </p>
           <p style={{
-            fontFamily: 'Georgia, serif',
-            color: 'var(--soft-ink)',
-            fontSize: '0.9rem',
-            letterSpacing: '0.06em',
+            fontFamily: 'Georgia, serif', color: 'var(--soft-ink)',
+            fontSize: '0.9rem', letterSpacing: '0.06em',
           }}>
             see you tomorrow.
           </p>
         </div>
+      </div>
+    );
+  }
+
+  // Still loading session or prompt
+  if (!prompt) {
+    return (
+      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p className="font-display" style={{ fontStyle: 'italic', color: 'var(--soft-ink)' }}>…</p>
       </div>
     );
   }
@@ -155,12 +191,8 @@ export default function WritePage() {
           <span className="cat-label">{PROMPT_LABELS[prompt.type]}</span>
         </div>
         <h2 className="font-display" style={{
-          fontStyle: 'italic',
-          fontSize: '1.5rem',
-          fontWeight: 400,
-          color: 'var(--ink)',
-          margin: 0,
-          lineHeight: 1.35,
+          fontStyle: 'italic', fontSize: '1.5rem', fontWeight: 400,
+          color: 'var(--ink)', margin: 0, lineHeight: 1.35,
         }}>
           {prompt.text}
         </h2>
@@ -171,10 +203,8 @@ export default function WritePage() {
         {items.map((val, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem' }}>
             <span className="font-hand" style={{
-              fontSize: '1.1rem',
-              color: 'var(--line)',
-              minWidth: '1.25rem',
-              userSelect: 'none',
+              fontSize: '1.1rem', color: 'var(--line)',
+              minWidth: '1.25rem', userSelect: 'none',
             }}>
               {i + 1}
             </span>
@@ -194,17 +224,13 @@ export default function WritePage() {
       {/* Follow-up AI question */}
       {followUp && (
         <div style={{
-          marginBottom: '1.5rem',
-          padding: '0.75rem 1rem',
+          marginBottom: '1.5rem', padding: '0.75rem 1rem',
           borderLeft: '2px solid var(--accent-soft)',
           background: 'rgba(201,146,92,0.07)',
         }}>
           <p className="font-display" style={{
-            fontStyle: 'italic',
-            fontSize: '1rem',
-            color: 'var(--soft-ink)',
-            margin: 0,
-            lineHeight: 1.5,
+            fontStyle: 'italic', fontSize: '1rem',
+            color: 'var(--soft-ink)', margin: 0, lineHeight: 1.5,
           }}>
             {followUp}
           </p>
