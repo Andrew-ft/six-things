@@ -8,7 +8,7 @@ import PromptCard from '@/components/home/prompt-card';
 import StreakCard from '@/components/home/streak-card';
 import ThrowbackCard from '@/components/home/throwback-card';
 import PageFooter from '@/components/shared/page-footer';
-import type { Prompt } from '@/lib/prompts';
+import type { Prompt, PromptType } from '@/lib/prompts';
 
 interface Props {
   prompt: Prompt;
@@ -32,7 +32,13 @@ export default function HomeClient({
   const [deleting, setDeleting] = useState(false);
 
   const showGuest = isGuest && guestStore.isGuest;
-  const effectiveTodayEntry = hasTodayEntry || (showGuest && !!guestStore.getEntryByDate(today));
+  const guestTodayEntry = showGuest ? guestStore.getEntryByDate(today) : null;
+  const effectiveTodayEntry = hasTodayEntry || !!guestTodayEntry;
+
+  // For guests who already submitted today, lock the prompt to the saved one
+  const effectivePrompt: Prompt = guestTodayEntry?.promptText && guestTodayEntry?.promptType
+    ? { text: guestTodayEntry.promptText, type: guestTodayEntry.promptType as PromptType }
+    : prompt;
   const effectiveTotalDays  = showGuest ? guestEntries.length : totalDays;
   const effectiveTotalNoticings = showGuest
     ? guestEntries.reduce((a, e) => a + e.items.length, 0)
@@ -171,7 +177,7 @@ export default function HomeClient({
       </header>
 
       {/* Today's Prompt */}
-      <PromptCard prompt={prompt} hasTodayEntry={effectiveTodayEntry} />
+      <PromptCard prompt={effectivePrompt} hasTodayEntry={effectiveTodayEntry} />
 
       {/* Throwback */}
       {throwback && <ThrowbackCard item={throwback.item} date={throwback.date} />}
