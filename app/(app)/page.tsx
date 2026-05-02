@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getTodaysPrompt } from '@/lib/prompts';
+import type { Prompt, PromptType } from '@/lib/prompts';
 import { getEntryByDate, getAllEntries } from '@/lib/db/queries';
 import { computeStreak } from '@/lib/insights';
 import HomeClient from './home-client';
@@ -9,7 +10,7 @@ export default async function HomePage() {
   const session = await auth();
 
   const today = new Date().toISOString().slice(0, 10);
-  const prompt = getTodaysPrompt();
+  let prompt: Prompt = getTodaysPrompt();
 
   let hasTodayEntry = false;
   let streakData = { current: 0, longest: 0 };
@@ -23,6 +24,11 @@ export default async function HomePage() {
       getEntryByDate(userId, today),
       getAllEntries(userId),
     ]);
+
+    // If already submitted today, lock the prompt to the saved one
+    if (todayEntry?.promptText && todayEntry?.promptType) {
+      prompt = { text: todayEntry.promptText, type: todayEntry.promptType as PromptType };
+    }
 
     hasTodayEntry = !!todayEntry;
     streakData = computeStreak(allEntries.map(e => e.date));
