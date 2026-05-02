@@ -2,11 +2,9 @@ import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { getUserByEmail, createUser } from './db/queries';
-import { db } from './db';
-import { users } from './db/schema';
-import { eq } from 'drizzle-orm';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {
@@ -60,7 +58,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   pages: {
-    signIn: '/auth/sign-in',
-    error:  '/auth/sign-in',
+    signIn: '/sign-in',
+    error:  '/sign-in',
   },
 });

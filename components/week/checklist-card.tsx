@@ -7,6 +7,7 @@ interface ChecklistItem {
   id: string;
   text: string;
   icon: string;
+  isDefault?: boolean;
 }
 
 interface Completion {
@@ -18,7 +19,7 @@ const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 function getWeekDates(): string[] {
   const today = new Date();
-  const dow = (today.getDay() + 6) % 7; // Mon=0
+  const dow = (today.getDay() + 6) % 7;
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today);
     d.setDate(today.getDate() - dow + i);
@@ -27,17 +28,16 @@ function getWeekDates(): string[] {
 }
 
 const DEFAULT_ITEMS: ChecklistItem[] = [
-  { id: 'default-1', text: 'drink water', icon: '💧' },
-  { id: 'default-2', text: 'move your body', icon: '◌' },
-  { id: 'default-3', text: 'rest without guilt', icon: '○' },
+  { id: 'default-1', text: 'drink water',       icon: '💧', isDefault: true },
+  { id: 'default-2', text: 'move your body',     icon: '◌',  isDefault: true },
+  { id: 'default-3', text: 'rest without guilt', icon: '○',  isDefault: true },
 ];
 
 export default function ChecklistCard() {
   const { data: session } = useSession();
-  const [items, setItems] = useState<ChecklistItem[]>(DEFAULT_ITEMS);
+  const [items, setItems]             = useState<ChecklistItem[]>(DEFAULT_ITEMS);
   const [completions, setCompletions] = useState<Completion[]>([]);
-  const [newText, setNewText] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [newText, setNewText]         = useState('');
 
   const weekDates = getWeekDates();
   const today = new Date().toISOString().slice(0, 10);
@@ -45,51 +45,76 @@ export default function ChecklistCard() {
 
   useEffect(() => {
     if (!session?.user) return;
-    setLoading(true);
     fetch(`/api/checklist?from=${from}&to=${to}`)
       .then(r => r.json())
       .then(({ items: dbItems, completions: dbCompletions }) => {
-        if (dbItems?.length) setItems(dbItems);
+        if (dbItems?.length) setItems(dbItems.map((i: ChecklistItem) => ({ ...i, isDefault: false })));
         if (dbCompletions)   setCompletions(dbCompletions);
       })
-      .finally(() => setLoading(false));
-  }, [session]);
+      .catch(() => {});
+  }, [session?.user]);
 
   function isCompleted(itemId: string, date: string) {
     return completions.some(c => c.checklistItemId === itemId && c.date === date);
   }
 
-  async function toggle(itemId: string) {
-    if (!session?.user) return;
-    const res = await fetch('/api/checklist', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'toggle', checklistItemId: itemId, date: today }),
-    });
-    const { done } = await res.json();
-    if (done) {
-      setCompletions(prev => [...prev, { checklistItemId: itemId, date: today }]);
+  async function toggle(item: ChecklistItem) {
+    const alreadyDone = isCompleted(item.id, today);
+
+    // Optimistic local update for all users (including guest)
+    if (alreadyDone) {
+      setCompletions(prev => prev.filter(c => !(c.checklistItemId === item.id && c.date === today)));
     } else {
-      setCompletions(prev => prev.filter(c => !(c.checklistItemId === itemId && c.date === today)));
+      setCompletions(prev => [...prev, { checklistItemId: item.id, date: today }]);
+    }
+
+    // Persist to API only for authenticated non-default items
+    if (!session?.user || item.isDefault) return;
+
+    try {
+      const res = await fetch('/api/checklist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle', checklistItemId: item.id, date: today }),
+      });
+      if (!res.ok) {
+        // Revert optimistic update on failure
+        if (alreadyDone) {
+          setCompletions(prev => [...prev, { checklistItemId: item.id, date: today }]);
+        } else {
+          setCompletions(prev => prev.filter(c => !(c.checklistItemId === item.id && c.date === today)));
+        }
+      }
+    } catch {
+      // Revert on network error
+      if (alreadyDone) {
+        setCompletions(prev => [...prev, { checklistItemId: item.id, date: today }]);
+      } else {
+        setCompletions(prev => prev.filter(c => !(c.checklistItemId === item.id && c.date === today)));
+      }
     }
   }
 
   async function addItem() {
     if (!newText.trim() || !session?.user) return;
-    const res = await fetch('/api/checklist', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: newText.trim() }),
-    });
-    const item = await res.json();
-    setItems(prev => [...prev, item]);
-    setNewText('');
+    try {
+      const res = await fetch('/api/checklist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: newText.trim() }),
+      });
+      const item = await res.json();
+      setItems(prev => [...prev, { ...item, isDefault: false }]);
+      setNewText('');
+    } catch {}
   }
 
   async function removeItem(id: string) {
     if (!session?.user) return;
-    await fetch(`/api/checklist/${id}`, { method: 'DELETE' });
     setItems(prev => prev.filter(i => i.id !== id));
+    try {
+      await fetch(`/api/checklist/${id}`, { method: 'DELETE' });
+    } catch {}
   }
 
   return (
@@ -105,7 +130,7 @@ export default function ChecklistCard() {
           <div key={item.id} style={{ marginBottom: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
               <button
-                onClick={() => toggle(item.id)}
+                onClick={() => toggle(item)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.5rem',
                   background: 'none', border: 'none', cursor: 'pointer', padding: 0,
@@ -124,7 +149,7 @@ export default function ChecklistCard() {
                   {item.icon} {item.text}
                 </span>
               </button>
-              {session?.user && !item.id.startsWith('default') && (
+              {session?.user && !item.isDefault && (
                 <button
                   onClick={() => removeItem(item.id)}
                   style={{ background: 'none', border: 'none', color: 'var(--line)', cursor: 'pointer', fontSize: '0.8rem', padding: '0 0 0 0.5rem' }}
@@ -150,7 +175,7 @@ export default function ChecklistCard() {
         );
       })}
 
-      {/* Add new */}
+      {/* Add new — only for signed-in users */}
       {session?.user && (
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
           <input

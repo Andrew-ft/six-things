@@ -54,9 +54,7 @@ export const PROMPT_LABELS: Record<PromptType, string> = {
 };
 
 export function getTodaysPrompt(): Prompt {
-  const today = new Date().toISOString().slice(0, 10);
-  const seed = today.split('-').reduce((a, b) => a + parseInt(b), 0);
-  return PROMPTS[seed % PROMPTS.length];
+  return PROMPTS[Math.floor(Math.random() * PROMPTS.length)];
 }
 
 export function getPromptForDate(dateStr: string): Prompt {

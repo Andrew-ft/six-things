@@ -25,7 +25,7 @@ export default function GuestBanner() {
         letterSpacing: '0.02em',
       }}>
         You're using Six Things as a guest.{' '}
-        <Link href="/auth/sign-in" style={{
+        <Link href="/sign-in" style={{
           color: 'var(--accent)',
           fontFamily: 'Georgia, serif',
           fontSize: '0.8rem',

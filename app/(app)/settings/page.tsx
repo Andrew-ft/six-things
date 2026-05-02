@@ -25,7 +25,7 @@ export default function SettingsPage() {
     if (!confirm('This will permanently delete your account and all your noticings. There is no undo. Are you sure?')) return;
     setDeleting(true);
     await fetch('/api/account', { method: 'DELETE' });
-    signOut({ callbackUrl: '/auth/sign-in' });
+    signOut({ callbackUrl: '/sign-in' });
   }
 
   return (
@@ -61,7 +61,7 @@ export default function SettingsPage() {
             </button>
             <button
               className="btn-secondary"
-              onClick={() => signOut({ callbackUrl: '/auth/sign-in' })}
+              onClick={() => signOut({ callbackUrl: '/sign-in' })}
               style={{ textAlign: 'left' }}
             >
               sign out

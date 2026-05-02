@@ -127,12 +127,14 @@ export default function MonthPage() {
 
   async function fetchLetter() {
     if (!data || !session?.user) return;
-    const res = await fetch('/api/insights/month/letter', { method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: data.allItems.slice(0, 12) }),
-    });
-    const d = await res.json();
-    setLetter(d.letter ?? null);
+    try {
+      const res = await fetch('/api/insights/month/letter', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: data.allItems.slice(0, 12) }),
+      });
+      const d = await res.json();
+      if (d.letter) setLetter(d.letter);
+    } catch {}
   }
 
   function handleAnswer(optIdx: number) {
