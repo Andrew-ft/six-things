@@ -21,7 +21,16 @@ export default function WritePage() {
   const { data: session } = useSession();
   const guestStore = useGuestStore();
 
-  const [prompt] = useState(() => getTodaysPrompt());
+  const [prompt] = useState(() => {
+    const key = 'write-prompt-session';
+    try {
+      const stored = sessionStorage.getItem(key);
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    const p = getTodaysPrompt();
+    try { sessionStorage.setItem(key, JSON.stringify(p)); } catch {}
+    return p;
+  });
   const [items, setItems] = useState(['', '', '', '', '', '']);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -77,6 +86,7 @@ export default function WritePage() {
       });
     }
 
+    try { sessionStorage.removeItem('write-prompt-session'); } catch {}
     setSaving(false);
     setSaved(true);
     setTimeout(() => {

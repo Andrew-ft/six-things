@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useGuestStore } from '@/lib/guest-store';
@@ -138,18 +138,21 @@ export default function MonthPage() {
 
   const [data, setData] = useState<MonthData | null>(null);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const questionsFetched = useRef(false);
   const [stage, setStage] = useState<'intro' | 'quiz' | 'reveal' | 'analysis'>('intro');
   const [qIdx, setQIdx] = useState(0);
   const [answers, setAnswers] = useState<number[]>([]);
   const [score, setScore] = useState(0);
   const [letter, setLetter] = useState<string | null>(null);
 
+  // Fetch month data
   useEffect(() => {
     if (session?.user) {
       fetch('/api/insights/month')
         .then(r => r.json())
-        .then(d => { setData(d); setQuizQuestions(generateQuizQuestions(d)); })
+        .then(d => setData(d))
         .finally(() => setLoading(false));
     } else if (guestStore.isGuest) {
       const today = new Date();
@@ -162,7 +165,7 @@ export default function MonthPage() {
       const midpoint = Math.floor(entries.length / 2);
       const earlyItems = entries.slice(midpoint).flatMap(e => e.items);
       const lateItems  = entries.slice(0, midpoint).flatMap(e => e.items);
-      const d: MonthData = {
+      setData({
         entries, allItems,
         topWords:     getTopWords(allItems, 30),
         shape:        computeNoticiingShape(allItems),
@@ -172,14 +175,34 @@ export default function MonthPage() {
         lateWeather:  classifyItems(lateItems),
         daysWritten:  entries.length,
         totalNoticings: allItems.length,
-      };
-      setData(d);
-      setQuizQuestions(generateQuizQuestions(d));
+      });
       setLoading(false);
     } else {
       setLoading(false);
     }
-  }, [session, guestStore.isGuest]);
+  }, [session?.user?.id, guestStore.isGuest]);
+
+  // Generate quiz questions exactly once when data first loads
+  useEffect(() => {
+    if (!data || questionsFetched.current) return;
+    questionsFetched.current = true;
+    setQuestionsLoading(true);
+
+    if (session?.user) {
+      fetch('/api/insights/month/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+        .then(r => r.json())
+        .then(d => { if (d.questions) setQuizQuestions(d.questions); })
+        .catch(() => setQuizQuestions(generateQuizQuestions(data)))
+        .finally(() => setQuestionsLoading(false));
+    } else {
+      setQuizQuestions(generateQuizQuestions(data));
+      setQuestionsLoading(false);
+    }
+  }, [data]);
 
   async function fetchLetter() {
     if (!data || !session?.user) return;
@@ -238,8 +261,12 @@ export default function MonthPage() {
             nothing here is a verdict.
           </p>
           {data && data.totalNoticings > 0 ? (
-            <button className="btn-primary" onClick={() => setStage('quiz')}>
-              begin →
+            <button
+              className="btn-primary"
+              onClick={() => setStage('quiz')}
+              disabled={questionsLoading || quizQuestions.length === 0}
+            >
+              {questionsLoading ? 'preparing questions…' : 'begin →'}
             </button>
           ) : (
             <p style={{ fontFamily: 'Georgia, serif', fontSize: '0.9rem', color: 'var(--soft-ink)' }}>
