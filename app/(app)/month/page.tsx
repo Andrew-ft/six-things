@@ -20,60 +20,113 @@ interface MonthData {
   totalNoticings: number;
 }
 
-const QUIZ_QUESTIONS = [
-  {
-    question: "Most of my noticings this month were:",
-    options: ['light and easy', 'heavy and hard', 'mixed — both'],
-    dataKey: 'weather',
-    getAnswer: (data: MonthData) => {
-      const { light, heavy } = data.weather;
-      if (light > heavy * 1.5) return 0;
-      if (heavy > light * 1.5) return 1;
-      return 2;
-    },
-    explanations: [
-      (d: MonthData) => `Your words leaned light — ${d.weather.light} lighter noticings vs ${d.weather.heavy} heavier ones.`,
-      (d: MonthData) => `Your words leaned heavy — ${d.weather.heavy} heavier noticings vs ${d.weather.light} lighter ones.`,
-      (d: MonthData) => `Light and heavy in balance — ${d.weather.light} lighter, ${d.weather.heavy} heavier.`,
-    ],
-  },
-  {
-    question: "When I notice things, I tend to look:",
-    options: ['inward (feelings, thoughts)', 'outward (people, world)', 'about the same'],
-    dataKey: 'shape',
-    getAnswer: (data: MonthData) => {
-      if (data.shape.inward > 60) return 0;
-      if (data.shape.outward > 60) return 1;
-      return 2;
-    },
-    explanations: [
-      (d: MonthData) => `${d.shape.inward}% of your language pointed inward.`,
-      (d: MonthData) => `${d.shape.outward}% of your language pointed outward.`,
-      (d: MonthData) => `Your gaze was balanced — ${d.shape.inward}% inward, ${d.shape.outward}% outward.`,
-    ],
-  },
-  {
-    question: "My month has been getting:",
-    options: ['lighter as it went on', 'heavier as it went on', 'staying roughly the same'],
-    dataKey: 'drift',
-    getAnswer: (data: MonthData) => {
-      const lateDiff = data.lateWeather.light - data.lateWeather.heavy;
-      const earlyDiff = data.earlyWeather.light - data.earlyWeather.heavy;
-      if (lateDiff > earlyDiff + 1) return 0;
-      if (earlyDiff > lateDiff + 1) return 1;
-      return 2;
-    },
-    explanations: [
-      () => 'Your later noticings had a lighter quality than your earlier ones.',
-      () => 'Your earlier noticings were lighter; later ones heavier.',
-      () => 'The emotional quality of your noticings was fairly consistent.',
-    ],
-  },
-];
+interface QuizQuestion {
+  question: string;
+  options: string[];
+  correctIdx: number;
+  explanation: string;
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function generateQuizQuestions(data: MonthData): QuizQuestion[] {
+  const qs: QuizQuestion[] = [];
+
+  // Q1: top word vs alternatives (data-specific)
+  if (data.topWords.length >= 3) {
+    const correct = data.topWords[0].word;
+    const opts = shuffle([data.topWords[0].word, data.topWords[1].word, data.topWords[2].word]);
+    qs.push({
+      question: 'Which word came up most in what you wrote this month?',
+      options: opts,
+      correctIdx: opts.indexOf(correct),
+      explanation: `"${correct}" appeared ${data.topWords[0].count} times — more than anything else you wrote.`,
+    });
+  } else {
+    const { light, heavy } = data.weather;
+    const correctIdx = light > heavy * 1.5 ? 0 : heavy > light * 1.5 ? 1 : 2;
+    qs.push({
+      question: 'How would you describe the mood of what you wrote this month?',
+      options: ['mostly light', 'mostly heavy', 'a mix of both'],
+      correctIdx,
+      explanation: correctIdx === 0
+        ? `Your words leaned lighter — ${light} lighter noticings vs ${heavy} heavier ones.`
+        : correctIdx === 1
+        ? `Your words leaned heavier — ${heavy} heavier noticings vs ${light} lighter ones.`
+        : `Light and heavy in balance — ${light} lighter, ${heavy} heavier.`,
+    });
+  }
+
+  // Q2: inward vs outward noticing
+  const { inward, outward } = data.shape;
+  const q2correct = inward > 60 ? 0 : outward > 60 ? 1 : 2;
+  qs.push({
+    question: 'When you notice things, you tend to look:',
+    options: ['inward — feelings, thoughts', 'outward — people, the world', 'about the same'],
+    correctIdx: q2correct,
+    explanation: q2correct === 0
+      ? `${inward}% of your language pointed inward this month.`
+      : q2correct === 1
+      ? `${outward}% of your language pointed outward this month.`
+      : `Your gaze was balanced — ${inward}% inward, ${outward}% outward.`,
+  });
+
+  // Q3: emotional drift across the month
+  const lateDiff = data.lateWeather.light - data.lateWeather.heavy;
+  const earlyDiff = data.earlyWeather.light - data.earlyWeather.heavy;
+  const q3correct = lateDiff > earlyDiff + 1 ? 0 : earlyDiff > lateDiff + 1 ? 1 : 2;
+  qs.push({
+    question: 'As the month went on, things felt:',
+    options: ['lighter as it progressed', 'heavier as it progressed', 'roughly the same throughout'],
+    correctIdx: q3correct,
+    explanation: q3correct === 0
+      ? 'Your later noticings had a lighter quality than your earlier ones.'
+      : q3correct === 1
+      ? 'Your earlier noticings were lighter; later ones carried more weight.'
+      : 'The emotional tone of your noticings stayed fairly consistent.',
+  });
+
+  return qs;
+}
+
+function generateSelfPortrait(data: MonthData): string {
+  const parts: string[] = [];
+  parts.push(`This month you wrote ${data.daysWritten} ${data.daysWritten === 1 ? 'time' : 'times'}, noticing ${data.totalNoticings} small things.`);
+  if (data.topWords[0]) {
+    parts.push(`The word "${data.topWords[0].word}" came up most — ${data.topWords[0].count} ${data.topWords[0].count === 1 ? 'time' : 'times'}.`);
+  }
+  if (data.topWords[1] && data.topWords[2]) {
+    parts.push(`You also kept returning to "${data.topWords[1].word}" and "${data.topWords[2].word}".`);
+  }
+  if (data.weather.light > data.weather.heavy * 1.5) {
+    parts.push('Your noticings leaned toward the lighter.');
+  } else if (data.weather.heavy > data.weather.light * 1.5) {
+    parts.push('Your noticings carried some weight.');
+  } else {
+    parts.push('You held both light and heavy things.');
+  }
+  if (data.shape.inward > 65) {
+    parts.push('You looked inward more than outward.');
+  } else if (data.shape.outward > 65) {
+    parts.push('You looked outward more than inward.');
+  }
+  if (data.innerVoice.length > 0) {
+    const iv = data.innerVoice[0];
+    parts.push(`You found yourself saying "${iv.phrase}" ${iv.count > 1 ? `${iv.count} times` : 'at least once'}.`);
+  }
+  return parts.join(' ');
+}
 
 const SCORE_PHRASES = [
   'Your words know you better than you know yourself.',
-  'There\'s a gap between you and your words.',
+  "There's a gap between you and your words.",
   'You see most of yourself.',
   'You see yourself clearly.',
 ];
@@ -84,6 +137,7 @@ export default function MonthPage() {
   const guestStore = useGuestStore();
 
   const [data, setData] = useState<MonthData | null>(null);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState<'intro' | 'quiz' | 'reveal' | 'analysis'>('intro');
   const [qIdx, setQIdx] = useState(0);
@@ -95,7 +149,7 @@ export default function MonthPage() {
     if (session?.user) {
       fetch('/api/insights/month')
         .then(r => r.json())
-        .then(setData)
+        .then(d => { setData(d); setQuizQuestions(generateQuizQuestions(d)); })
         .finally(() => setLoading(false));
     } else if (guestStore.isGuest) {
       const today = new Date();
@@ -108,17 +162,19 @@ export default function MonthPage() {
       const midpoint = Math.floor(entries.length / 2);
       const earlyItems = entries.slice(midpoint).flatMap(e => e.items);
       const lateItems  = entries.slice(0, midpoint).flatMap(e => e.items);
-      setData({
+      const d: MonthData = {
         entries, allItems,
-        topWords:  getTopWords(allItems, 30),
-        shape:     computeNoticiingShape(allItems),
-        innerVoice: getInnerVoicePhrases(allItems),
-        weather:    classifyItems(allItems),
+        topWords:     getTopWords(allItems, 30),
+        shape:        computeNoticiingShape(allItems),
+        innerVoice:   getInnerVoicePhrases(allItems),
+        weather:      classifyItems(allItems),
         earlyWeather: classifyItems(earlyItems),
         lateWeather:  classifyItems(lateItems),
-        daysWritten: entries.length,
+        daysWritten:  entries.length,
         totalNoticings: allItems.length,
-      });
+      };
+      setData(d);
+      setQuizQuestions(generateQuizQuestions(d));
       setLoading(false);
     } else {
       setLoading(false);
@@ -128,7 +184,8 @@ export default function MonthPage() {
   async function fetchLetter() {
     if (!data || !session?.user) return;
     try {
-      const res = await fetch('/api/insights/month/letter', { method: 'POST',
+      const res = await fetch('/api/insights/month/letter', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items: data.allItems.slice(0, 12) }),
       });
@@ -138,16 +195,13 @@ export default function MonthPage() {
   }
 
   function handleAnswer(optIdx: number) {
-    if (!data) return;
-    const q = QUIZ_QUESTIONS[qIdx];
-    const correct = q.getAnswer(data);
-    const isMatch = optIdx === correct;
-    const newAnswers = [...answers, optIdx];
-    setAnswers(newAnswers);
+    if (!quizQuestions.length) return;
+    const q = quizQuestions[qIdx];
+    const isMatch = optIdx === q.correctIdx;
+    setAnswers(prev => [...prev, optIdx]);
     if (isMatch) setScore(s => s + 1);
-
-    if (qIdx < QUIZ_QUESTIONS.length - 1) {
-      setTimeout(() => setQIdx(q => q + 1), 1200);
+    if (qIdx < quizQuestions.length - 1) {
+      setTimeout(() => setQIdx(i => i + 1), 1200);
     } else {
       setTimeout(() => setStage('reveal'), 1200);
     }
@@ -196,24 +250,23 @@ export default function MonthPage() {
       )}
 
       {/* STAGE: QUIZ */}
-      {stage === 'quiz' && data && qIdx < QUIZ_QUESTIONS.length && (
+      {stage === 'quiz' && quizQuestions.length > 0 && qIdx < quizQuestions.length && (
         <div className="card ink-reveal">
           <div className="cat-label" style={{ marginBottom: '1rem' }}>
-            question {qIdx + 1} of {QUIZ_QUESTIONS.length}
+            question {qIdx + 1} of {quizQuestions.length}
           </div>
           <p className="font-display" style={{
             fontStyle: 'italic', fontSize: '1.2rem', color: 'var(--ink)',
             marginBottom: '1.5rem', lineHeight: 1.5,
           }}>
-            {QUIZ_QUESTIONS[qIdx].question}
+            {quizQuestions[qIdx].question}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {QUIZ_QUESTIONS[qIdx].options.map((opt, i) => {
+            {quizQuestions[qIdx].options.map((opt, i) => {
               const answered = answers.length > qIdx;
-              const correct  = QUIZ_QUESTIONS[qIdx].getAnswer(data);
+              const correct  = quizQuestions[qIdx].correctIdx;
               const isThis   = answers[qIdx] === i;
               const isMatch  = correct === i;
-
               return (
                 <button
                   key={i}
@@ -250,16 +303,14 @@ export default function MonthPage() {
           {answers.length > qIdx && (
             <div style={{ marginTop: '1.25rem', padding: '0.75rem 0', borderTop: '1px solid var(--line)' }}>
               <p style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '0.85rem', color: 'var(--soft-ink)', margin: 0 }}>
-                {answers[qIdx] === QUIZ_QUESTIONS[qIdx].getAnswer(data)
-                  ? 'this matches what you wrote. '
-                  : 'a quiet difference. '}
-                {QUIZ_QUESTIONS[qIdx].explanations[QUIZ_QUESTIONS[qIdx].getAnswer(data)](data)}
+                {answers[qIdx] === quizQuestions[qIdx].correctIdx ? 'this matches what you wrote. ' : 'a quiet difference. '}
+                {quizQuestions[qIdx].explanation}
               </p>
-              {qIdx < QUIZ_QUESTIONS.length - 1 && (
+              {qIdx < quizQuestions.length - 1 && (
                 <button
                   className="btn-ghost"
                   style={{ marginTop: '0.75rem', fontSize: '0.85rem' }}
-                  onClick={() => setQIdx(q => q + 1)}
+                  onClick={() => setQIdx(i => i + 1)}
                 >
                   next question →
                 </button>
@@ -293,13 +344,7 @@ export default function MonthPage() {
           <div className="card" style={{ marginBottom: '1.25rem' }}>
             <div className="cat-label" style={{ marginBottom: '0.75rem' }}>🪞 self portrait</div>
             <p style={{ fontFamily: 'Georgia, serif', lineHeight: 1.7, margin: 0, fontSize: '0.9rem', color: 'var(--soft-ink)' }}>
-              This month you wrote {data.daysWritten} times, noticing {data.totalNoticings} small things.
-              {data.topWords[0] && ` The word "${data.topWords[0].word}" appeared most — ${data.topWords[0].count} times.`}
-              {data.weather.light > data.weather.heavy
-                ? ' Your noticings leaned toward the lighter.'
-                : data.weather.heavy > data.weather.light
-                ? ' Your noticings carried some weight.'
-                : ' You held both light and heavy things.'}
+              {generateSelfPortrait(data)}
             </p>
           </div>
 
@@ -367,17 +412,12 @@ export default function MonthPage() {
           <div className="card" style={{ marginBottom: '1.25rem', transform: 'rotate(-0.5deg)' }}>
             <div className="cat-label" style={{ marginBottom: '0.75rem' }}>💌 letter from yourself</div>
             {letter ? (
-              <p className="font-hand" style={{
-                fontSize: '1.1rem', lineHeight: 1.8,
-                color: 'var(--ink)', margin: 0,
-              }}>
+              <p className="font-hand" style={{ fontSize: '1.1rem', lineHeight: 1.8, color: 'var(--ink)', margin: 0 }}>
                 {letter}
               </p>
             ) : (
               <p className="font-display" style={{ fontStyle: 'italic', color: 'var(--soft-ink)', fontSize: '0.9rem' }}>
-                {session?.user
-                  ? 'generating your letter…'
-                  : 'sign in to receive your letter.'}
+                {session?.user ? 'generating your letter…' : 'sign in to receive your letter.'}
               </p>
             )}
           </div>

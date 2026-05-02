@@ -21,7 +21,7 @@ export default function WritePage() {
   const { data: session } = useSession();
   const guestStore = useGuestStore();
 
-  const prompt = getTodaysPrompt();
+  const [prompt] = useState(() => getTodaysPrompt());
   const [items, setItems] = useState(['', '', '', '', '', '']);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);

@@ -21,6 +21,20 @@ interface WeekData {
   totalNoticings: number;
 }
 
+function generateWeeklySummary(data: WeekData): string {
+  if (data.daysWritten === 0) return 'Nothing written this week yet.';
+  const parts: string[] = [];
+  const tone = data.weather.light > data.weather.heavy * 1.5 ? 'lighter'
+    : data.weather.heavy > data.weather.light * 1.5 ? 'heavier' : 'mixed';
+  if (data.topWords[0]) parts.push(`"${data.topWords[0].word}" came up most in what you wrote.`);
+  const topTheme = Object.entries(data.themes).sort(([, a], [, b]) => b - a).find(([, v]) => v > 0);
+  if (topTheme) parts.push(`Your noticings touched on ${topTheme[0]} most.`);
+  parts.push(tone === 'lighter' ? 'The week leaned light.'
+    : tone === 'heavier' ? 'The week carried some weight.'
+    : 'Light and heavy both showed up.');
+  return parts.join(' ');
+}
+
 export default function WeekPage() {
   const router = useRouter();
   const { data: session } = useSession();
@@ -93,6 +107,14 @@ export default function WeekPage() {
 
       {data && data.allItems.length > 0 ? (
         <>
+          {/* Weekly summary */}
+          <div className="card-plain" style={{ marginBottom: '1.25rem', borderLeft: '3px solid var(--accent-soft)', paddingLeft: '1rem' }}>
+            <div className="cat-label" style={{ marginBottom: '0.5rem' }}>weekly portrait</div>
+            <p style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem', color: 'var(--soft-ink)', margin: 0, lineHeight: 1.7 }}>
+              {generateWeeklySummary(data)}
+            </p>
+          </div>
+
           <TwoWeathersCard weather={data.weather} allItems={data.allItems} />
           <ChecklistCard />
           <ThemeBarsCard themes={data.themes} />
