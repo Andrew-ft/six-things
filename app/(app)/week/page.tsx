@@ -41,8 +41,10 @@ export default function WeekPage() {
   const guestStore = useGuestStore();
   const [data, setData] = useState<WeekData | null>(null);
   const [weeklySummary, setWeeklySummary] = useState<string | null>(null);
+  const [checklistItems, setChecklistItems] = useState<Array<{ text: string; icon: string }> | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const summaryFetched = useRef(false);
+  const checklistFetched = useRef(false);
 
   useEffect(() => {
     if (session?.user) {
@@ -75,19 +77,33 @@ export default function WeekPage() {
     }
   }, [session, guestStore.isGuest]);
 
-  // Fetch Claude-generated summary once when data loads
+  // Fetch Claude-generated summary and checklist suggestions once when data loads
   useEffect(() => {
-    if (!data || summaryFetched.current || data.allItems.length === 0) return;
-    summaryFetched.current = true;
+    if (!data || data.allItems.length === 0) return;
 
-    fetch('/api/insights/week/summary', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-      .then(r => r.json())
-      .then(d => { if (d.summary) setWeeklySummary(d.summary); })
-      .catch(() => {});
+    if (!summaryFetched.current) {
+      summaryFetched.current = true;
+      fetch('/api/insights/week/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+        .then(r => r.json())
+        .then(d => { if (d.summary) setWeeklySummary(d.summary); })
+        .catch(() => {});
+    }
+
+    if (!checklistFetched.current) {
+      checklistFetched.current = true;
+      fetch('/api/insights/week/checklist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allItems: data.allItems }),
+      })
+        .then(r => r.json())
+        .then(d => { if (Array.isArray(d.items)) setChecklistItems(d.items); })
+        .catch(() => {});
+    }
   }, [data]);
 
   if (loading) {
@@ -133,7 +149,7 @@ export default function WeekPage() {
           </div>
 
           <TwoWeathersCard weather={data.weather} allItems={data.allItems} />
-          <ChecklistCard />
+          <ChecklistCard suggestedItems={checklistItems} />
           <ThemeBarsCard themes={data.themes} />
           <TopWordsCard words={data.topWords} />
         </>

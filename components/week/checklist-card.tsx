@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 
 interface ChecklistItem {
@@ -33,11 +33,34 @@ const DEFAULT_ITEMS: ChecklistItem[] = [
   { id: 'default-3', text: 'rest without guilt', icon: '○',  isDefault: true },
 ];
 
-export default function ChecklistCard() {
+interface Props {
+  suggestedItems?: Array<{ text: string; icon: string }>;
+}
+
+export default function ChecklistCard({ suggestedItems }: Props) {
   const { data: session } = useSession();
-  const [items, setItems]             = useState<ChecklistItem[]>(DEFAULT_ITEMS);
+
+  const baseItems: ChecklistItem[] = suggestedItems && suggestedItems.length > 0
+    ? suggestedItems.map((s, i) => ({ id: `suggested-${i}`, text: s.text, icon: s.icon, isDefault: true }))
+    : DEFAULT_ITEMS;
+
+  const [items, setItems] = useState<ChecklistItem[]>(baseItems);
   const [completions, setCompletions] = useState<Completion[]>([]);
   const [newText, setNewText]         = useState('');
+  const suggestionsApplied = useRef(false);
+
+  // When suggestions arrive async, replace only the default items (keep any custom ones)
+  useEffect(() => {
+    if (!suggestedItems || suggestedItems.length === 0 || suggestionsApplied.current) return;
+    suggestionsApplied.current = true;
+    setItems(prev => {
+      const custom = prev.filter(i => !i.isDefault);
+      return [
+        ...suggestedItems.map((s, idx) => ({ id: `suggested-${idx}`, text: s.text, icon: s.icon, isDefault: true as const })),
+        ...custom,
+      ];
+    });
+  }, [suggestedItems]);
 
   const weekDates = getWeekDates();
   const today = new Date().toISOString().slice(0, 10);

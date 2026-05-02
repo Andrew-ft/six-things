@@ -196,7 +196,11 @@ export default function MonthPage() {
     })
       .then(r => r.json())
       .then(d => {
-        if (d.questions) setQuizQuestions(d.questions);
+        setQuizQuestions(
+          Array.isArray(d.questions) && d.questions.length > 0
+            ? d.questions
+            : generateQuizQuestions(data)
+        );
         if (d.portrait) setPortrait(d.portrait);
       })
       .catch(() => setQuizQuestions(generateQuizQuestions(data)))
