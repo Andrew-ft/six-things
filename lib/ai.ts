@@ -88,6 +88,47 @@ export async function generateLetterFromYourself(items: string[]): Promise<strin
   }
 }
 
+export async function generateDailyPrompt(): Promise<{ text: string; type: string }> {
+  const fallback = (await import('./prompts')).getTodaysPrompt();
+
+  if (!hasValidApiKey()) return fallback;
+
+  try {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 120,
+      system: `You generate daily journaling prompts for an app called "Six Things" where users write down 6 small things they noticed.
+
+Style rules:
+- Gentle, poetic, specific — never prescriptive or achievement-focused
+- Invites noticing small ordinary things, not deep reflection or goals
+- Usually starts with "Six" followed by something concrete and evocative
+- Occasionally uses a split format like "Three [x]. Three [y]."
+- Never mentions productivity, improvement, or growth
+
+Prompt types and examples:
+- standard: "Six things you noticed today", "Six small moments from today"
+- sensory: "Three sounds. Three smells.", "Six textures your hands met today"
+- emotional: "Six small joys", "Six things that made you feel something — even tiny things"
+- shadow: "Six things you almost said but didn't", "Six things you tried to ignore today"
+- wildcard: "Six colours from today", "Six things that were warm today"
+- gentle: "Six things that were enough today", "Six things you did without thinking"
+- time: "Six things from this morning specifically", "Six things from the last hour"
+
+Return ONLY valid JSON: {"text": "...", "type": "standard|sensory|emotional|shadow|wildcard|gentle|time"}`,
+      messages: [{ role: 'user', content: 'Generate one unique journaling prompt for today.' }],
+    });
+
+    const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
+    const parsed = JSON.parse(raw);
+    if (parsed.text && parsed.type) return { text: parsed.text, type: parsed.type };
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export async function reframeHabitPhrase(phrase: string): Promise<string | null> {
   if (containsCrisisContent(phrase)) return null;
   if (!hasValidApiKey()) return null;

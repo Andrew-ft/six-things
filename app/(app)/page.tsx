@@ -1,16 +1,16 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { getTodaysPrompt } from '@/lib/prompts';
 import type { Prompt, PromptType } from '@/lib/prompts';
 import { getEntryByDate, getAllEntries } from '@/lib/db/queries';
 import { computeStreak } from '@/lib/insights';
+import { generateDailyPrompt } from '@/lib/ai';
 import HomeClient from './home-client';
 
 export default async function HomePage() {
   const session = await auth();
 
   const today = new Date().toISOString().slice(0, 10);
-  let prompt: Prompt = getTodaysPrompt();
+  let prompt: Prompt = await generateDailyPrompt() as Prompt;
 
   let hasTodayEntry = false;
   let streakData = { current: 0, longest: 0 };
